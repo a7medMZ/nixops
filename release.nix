@@ -6,6 +6,22 @@
 let
   pkgs = import nixpkgs { };
   version = "1.6.1" + (if officialRelease then "" else "pre${toString nixopsSrc.revCount}_${nixopsSrc.shortRev}");
+  croc-boto = buildPythonPackage rec {
+    name = "croc-boto";
+    version = "2.46.1-CROC8";
+
+  src = pkgs.fetchFromGithub {
+    owner = "C2Devel";
+    repo = "boto";
+    rev = "${version}";
+    sha256 = "1xrckb0dn2841gvp32n18gib14bpi77hmjw3r9jiyhg402iip7ry";
+    };
+    checkPhase = with pkgs; ''
+      ${python.interpreter} tests/test.py default
+    '';
+    checkInputs = with pkgs;[ nose mock ];
+    propagatedBuildInputs = with pkgs; [ requests httpretty ];
+  };
 
 in
 
@@ -81,7 +97,7 @@ rec {
 
       propagatedBuildInputs = with python2Packages;
         [ prettytable
-          boto
+          croc-boto
           boto3
           hetzner
           libcloud
