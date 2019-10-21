@@ -478,7 +478,7 @@ class EC2State(MachineState, nixops.resources.ec2_common.EC2CommonState):
                 snapshot_tags = {}
                 snapshot_tags.update(defn.tags)
                 snapshot_tags.update(self.get_common_tags())
-                snapshot_tags['Name'] = "{0} - {3} [{1} - {2}]".format(self.depl.description, self.name, device_stored, backup_id)
+                snapshot_tags['Name'] = "{0} - {3} [{1} - {2}]".format(self.depl.name, self.name, device_stored, backup_id)
 
                 self._retry(lambda: self._conn.create_tags([snapshot.id], snapshot_tags))
                 backup[device_stored] = snapshot.id
@@ -1582,3 +1582,4 @@ class EC2State(MachineState, nixops.resources.ec2_common.EC2CommonState):
     def sorted_block_device_mapping(self):
         """In order to preserve nvme devices names volumes should be attached in lexicographic order (ordered by device name)."""
         return sorted(self.block_device_mapping.items())
+
