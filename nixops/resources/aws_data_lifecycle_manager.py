@@ -8,22 +8,22 @@ import nixops.resources
 import botocore.exceptions
 from nixops.resources.ec2_common import EC2CommonState
 
-class dataLifecycleManagerDefinition(nixops.resources.ResourceDefinition):
+class awsDataLifecycleManagerDefinition(nixops.resources.ResourceDefinition):
     """Definition of  a data lifecycle manager"""
 
     @classmethod
     def get_type(cls):
-        return "data-lifecycle-manager"
+        return "aws-data-lifecycle-manager"
 
     @classmethod
     def get_resource_type(cls):
-        return "dataLifecycleManager"
+        return "awsDataLifecycleManager"
 
     def show_type(self):
         return "{0}".format(self.get_type())
 
 
-class dataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
+class awsDataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
     """State of a data lifecycle manager"""
 
     state = nixops.util.attr_property("state", nixops.resources.ResourceState.MISSING, int)
@@ -41,10 +41,12 @@ class dataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
     ruleIntervalUnit = nixops.util.attr_property("ruleIntervalUnit", None)
     ruleTime = nixops.util.attr_property("ruleTime", None)
     retainRule = nixops.util.attr_property("retainRule", None, int)
+    dlmName = nixops.util.attr_property("dlmName", None)
+
 
     @classmethod
     def get_type(cls):
-        return "data-lifecycle-manager"
+        return "aws-data-lifecycle-manager"
 
     def __init__(self, depl, name, id):
         nixops.resources.ResourceState.__init__(self, depl, name, id)
@@ -54,7 +56,7 @@ class dataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
         return self.state != self.MISSING
 
     def show_type(self):
-        s = super(dataLifecycleManagerState, self).show_type()
+        s = super(awsDataLifecycleManagerState, self).show_type()
         return s
 
     @property
@@ -95,10 +97,9 @@ class dataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
         args['Description'] = config['description']
         args['State'] = "ENABLED"
         args['PolicyDetails'] = dict(
-
             TargetTags=[{"Key": k, "Value": config['targetTags'][k]} for k in config['targetTags']],
             Schedules=[dict(
-                Name=config['name'],
+                Name=config['dlmName'],
                 CopyTags=config['copyTags'],
                 TagsToAdd=[{"Key": k, "Value": config['tagsToAdd'][k]} for k in config['tagsToAdd']],
                 CreateRule=dict(
@@ -122,6 +123,7 @@ class dataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
             self.ruleIntervalUnit = config['ruleIntervalUnit']
             self.ruleTime = config['ruleTime']
             self.retainRule = config['retainRule']
+            self.dlmName = config['dlmName']
 
         return args
 
@@ -134,20 +136,19 @@ class dataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
             self.warn("cannot change region or resource types for an existing data lifecycle manager...")
 
         self.access_key_id = config['accessKeyId']
-
-        if self.state == self.UP and (self.executionRole != config['executionRole'] or
-            self.targetTags != config['targetTags'] or self.retainRule != config['retainRule'] or
-            self.excludeBootVolume != config['excludeBootVolume'] or self.copyTags != config['copyTags'] or
-            self.tagsToAdd != config['tagsToAdd'] or self.ruleInterval != config['ruleInterval'] or
-            self.ruleIntervalUnit != config['ruleIntervalUnit'] or self.ruleTime != config['ruleTime']):
-            args = self.create_args_dict(config)
-            args['PolicyId'] = self.policyId
-            self.log("updating data lifecycle manager `{}`... ".format(self.name))
-            try:
-                self.get_client('dlm').update_lifecycle_policy(**args)
-            except botocore.exceptions.ClientError as error:
-                raise error
-
+        if self.state == self.UP:
+            dlm_keys = ['copyTags',  'retainRule', 'ruleTime', 'description',
+                'executionRole', 'ruleIntervalUnit', 'tagsToAdd', 'excludeBootVolume',
+                'resourceTypes', 'targetTags', 'ruleInterval', 'dlmName']
+            dlm_diff = [k for k in dlm_keys if getattr(self, k) != config[k]]
+            if dlm_diff:
+                args = self.create_args_dict(config)
+                args['PolicyId'] = self.policyId
+                self.log("updating data lifecycle manager `{}`... ".format(self.name))
+                try:
+                    self.get_client('dlm').update_lifecycle_policy(**args)
+                except botocore.exceptions.ClientError as error:
+                    raise error
 
         if self.state != self.UP:
             args = self.create_args_dict(config)
@@ -174,18 +175,18 @@ class dataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
                 self.policyId = policy['PolicyId']
                 self.resourceTypes = config['resourceTypes']
 
-            self._update_tag(config)
-
     def check(self):
         if self.policyId is None:
             self.state = self.MISSING
             return
-        policy = self.get_client('dlm').get_lifecycle_policies(
+        try:
+            policy = self.get_client('dlm').get_lifecycle_policies(
                     PolicyIds=[self.policyId]
                    )['Policies']
-        if policy is None:
-            self.state = self.MISSING
-            return
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                self.state = self.MISSING
+                return
         if policy[0]['State'] != 'ENABLED':
             self.warn("data lifecycle manager `{}` state is {}, please investigate..."
                 .format(self.policyId, policy[0]['State']))
@@ -194,11 +195,7 @@ class dataLifecycleManagerState(nixops.resources.ResourceState, EC2CommonState):
 
     def _destroy(self):
 
-        self.warn("destrying `{}` won't delete the snapshot taken by this resource ..."
-                        .format(self.name))
-
         self.log("deleting data lifecycle manager `{}`... ".format(self.name))
-
         try:
             self.get_client('dlm').delete_lifecycle_policy(PolicyId=self.policyId)
         except botocore.exceptions.ClientError as e:

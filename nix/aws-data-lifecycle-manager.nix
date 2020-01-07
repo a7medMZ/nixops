@@ -7,7 +7,7 @@ with lib;
 
   options = {
 
-    name = mkOption {
+    dlmName = mkOption {
       default = "nixops-${uuid}-${name}";
       type = types.str;
       description = "data lifecycle manager name.";
@@ -65,6 +65,7 @@ with lib;
         of the volume created by this policy.
       '';
     };
+
     tagsToAdd = mkOption {
       default = { };
       example = { foo = "bar"; xyzzy = "bla"; };
@@ -108,7 +109,6 @@ with lib;
         The number of snapshots to keep for each volume, up to a maximum of 1000.
       '';
     };
-
   };
 
   config._type = "data-lifecycle-manager";
