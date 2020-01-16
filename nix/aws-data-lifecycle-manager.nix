@@ -111,5 +111,5 @@ with lib;
     };
   };
 
-  config._type = "data-lifecycle-manager";
+  config._type = "aws-data-lifecycle-manager";
 }
