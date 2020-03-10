@@ -7,7 +7,7 @@ import boto
 import boto.iam
 import nixops.util
 import nixops.resources
-import nixopsaws.ec2_utils
+import nixops.ec2_utils
 from xml.etree import ElementTree
 from pprint import pprint
 from boto.exception import BotoServerError
@@ -75,7 +75,7 @@ class IAMRoleState(nixops.resources.ResourceState):
 
     def connect(self):
         if self._conn: return
-        (access_key_id, secret_access_key) = nixopsaws.ec2_utils.fetch_aws_secret_key(self.access_key_id)
+        (access_key_id, secret_access_key) = nixops.ec2_utils.fetch_aws_secret_key(self.access_key_id)
         self._conn = boto.connect_iam(
             aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key)
 
@@ -162,7 +162,7 @@ class IAMRoleState(nixops.resources.ResourceState):
     def create_after(self, resources, defn):
         # IAM roles can refer to S3 buckets.
         return {r for r in resources if
-                isinstance(r, nixopsaws.resources.s3_bucket.S3BucketState)}
+                isinstance(r, nixops.resources.s3_bucket.S3BucketState)}
 
 
     def _get_instance_profile(self, name, allow404 = True):
@@ -212,7 +212,7 @@ class IAMRoleState(nixops.resources.ResourceState):
 
     def create(self, defn, check, allow_reboot, allow_recreate):
 
-        self.access_key_id = defn.access_key_id or nixopsaws.ec2_utils.get_access_key_id()
+        self.access_key_id = defn.access_key_id or nixops.ec2_utils.get_access_key_id()
         if not self.access_key_id:
             raise Exception("please set ‘accessKeyId’, $EC2_ACCESS_KEY or $AWS_ACCESS_KEY_ID")
 
