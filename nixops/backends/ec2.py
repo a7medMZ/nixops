@@ -1156,8 +1156,10 @@ class EC2State(MachineState, nixops.resources.ec2_common.EC2CommonState):
 
         # Detect if volumes were manually detached.  If so, reattach
         # them.
+        mapped_devices = self._get_instance().block_device_mapping.keys()
+
         for device_stored, v in self.block_device_mapping.items():
-            if device_name_to_boto_expected(device_stored) not in self._get_instance().block_device_mapping.keys() and not v.get('needsAttach', False) and v.get('volumeId', None):
+            if device_name_to_boto_expected(device_stored) not in mapped_devices and device_stored not in mapped_devices and not v.get('needsAttach', False) and v.get('volumeId', None):
                 device_real = device_name_stored_to_real(device_stored)
                 self.warn("device ‘{0}’ was manually detached!".format(device_real))
                 v['needsAttach'] = True
@@ -1517,7 +1519,9 @@ class EC2State(MachineState, nixops.resources.ec2_common.EC2CommonState):
                 device_real = device_name_stored_to_real(device_stored)
                 device_that_boto_expects = device_name_to_boto_expected(device_real) # boto expects only sd names
 
-                if device_that_boto_expects not in instance.block_device_mapping.keys() and v.get('volumeId', None):
+                mapped_devices = instance.block_device_mapping.keys()
+
+                if device_that_boto_expects not in mapped_devices and device_real not in mapped_devices and v.get('volumeId', None):
                     res.disks_ok = False
                     res.messages.append("volume ‘{0}’ not attached to ‘{1}’".format(v['volumeId'], device_real))
                     volume = nixops.ec2_utils.get_volume_by_id(self.connect(), v['volumeId'], allow_missing=True)
