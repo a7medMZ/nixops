@@ -325,7 +325,7 @@ class EC2State(MachineState, nixops.resources.ec2_common.EC2CommonState):
         if not self._cached_instance:
             self.connect()
             try:
-                instances = self._conn.get_only_instances([instance_id])
+                instances = self._retry(lambda : self._conn.get_only_instances([instance_id]))
             except boto.exception.EC2ResponseError as e:
                 if allow_missing and e.error_code == "InvalidInstanceID.NotFound":
                     instances = []
@@ -969,12 +969,13 @@ class EC2State(MachineState, nixops.resources.ec2_common.EC2CommonState):
 
             root_device = ami['RootDeviceName']
             if resize_root:
+                blk_device = [el for el in ami["BlockDeviceMappings"] if el.get("Ebs", None) is not None]
                 root_mapping = dict(
                     DeviceName=root_device,
                     Ebs=dict(
                         DeleteOnTermination=True,
                         VolumeSize=defn.root_disk_size,
-                        VolumeType=ami['BlockDeviceMappings'][0]['Ebs']['VolumeType']
+                        VolumeType=blk_device[0]['Ebs']['VolumeType']
                     )
                 )
                 args['BlockDeviceMappings'].append(root_mapping)
